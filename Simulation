@@ -1,0 +1,106 @@
+// ***************************************** itha İHTİYAÇ SON *************************************************								// ***************************************** forw İHTİYAÇ BAŞLANGIÇ *************************************************
+			if($sablon['parametre_sene_'.$anlik_sene.'_ust_limit'] == 0){
+$limit_hesap = 999999999;
+}else{
+$limit_hesap = $sablon['parametre_sene_'.$anlik_sene.'_ust_limit'] / 100;
+}
+if($firma['firma_ihtiyac_forw'] < 0){
+	$firma['firma_ihtiyac_forw'] = -1 * $firma['firma_ihtiyac_forw'];
+}else{}
+			$ust_limit_forw = ($firma['firma_ihtiyac_forw'] + $firma['firma_ihtiyac_forw'] * $limit_hesap);
+			$simbank_limit = $sablon['parametre_sene_'.$anlik_sene.'_simbank_spread_forw'];	
+			
+							
+			$num_dagitim_forw = $firma['firma_ihtiyac_forw'];								  
+			usort($teklif_forw, function($a_dagitim_forw, $b_dagitim_forw){
+				if($a_dagitim_forw['teklif_forw_oran'] == $b_dagitim_forw['teklif_forw_oran'])
+					return $a_dagitim_forw['teklif_forw_miktar'] < $b_dagitim_forw['teklif_forw_miktar'];
+				return $a_dagitim_forw['teklif_forw_oran'] > $b_dagitim_forw['teklif_forw_oran'];
+			});
+
+
+
+$teklif_forw = array_map(function($i_dagitim_forw) use($teklif_forw){
+				$f_dagitim_forw = array_filter($teklif_forw, function($a_dagitim_forw) use($i_dagitim_forw){
+					return $a_dagitim_forw['teklif_forw_miktar'] == $i_dagitim_forw['teklif_forw_miktar'] && $a_dagitim_forw['teklif_forw_oran'] == $i_dagitim_forw['teklif_forw_oran'];
+				});
+				return count($f_dagitim_forw) > 1 ? array_merge($i_dagitim_forw, ['esit' => count($f_dagitim_forw), 'varsay' => $i_dagitim_forw['teklif_forw_miktar']/count($f_dagitim_forw)]) : $i_dagitim_forw;
+			}, $teklif_forw);
+		    										  
+			$end_dagitim_forw = false;
+
+
+
+
+
+
+
+foreach ($teklif_forw as $k => $a_dagitim_forw) {
+
+$prev_dagitim_forw = $num_dagitim_forw;
+if(
+$a_dagitim_forw['teklif_forw_miktar'] > $ust_limit_forw || 
+$a_dagitim_forw['teklif_forw_oran'] >= $simbank_limit 
+){
+				
+$kredi_kabul_edilmedi_forw = $db->prepare("UPDATE oneri SET
+			
+kredi_forw_miktar =:kredi_forw_miktar,
+kredi_forw_oran =:kredi_forw_oran,
+oneri_batak =:oneri_batak
+
+WHERE oneri_simulasyon_id='".$simulasyon_kimlik."' AND oneri_sene='".$anlik_sene."' AND oneri_kullanici_id='".$a_dagitim_forw['teklif_kullanici_id']."' AND oneri_firma_id= '".$a_dagitim_forw['teklif_firma_id']."' ");
+
+$insert = $kredi_kabul_edilmedi_forw->execute(array(
+						 
+'kredi_forw_miktar' => '0',
+'kredi_forw_oran' => '0',
+'oneri_batak' => ($firma['firma_batak'])
+
+					 ));		
+					
+}else{
+				if($end_dagitim_forw){
+						$calc_dagitim_forw = $end_dagitim_forw;
+					} else{
+						if(isset($a_dagitim_forw['esit'])){
+if($num_dagitim_forw < ($a_dagitim_forw['teklif_forw_miktar'] * $a_dagitim_forw['esit'])){
+$calc_dagitim_forw = $end_dagitim_forw = $num_dagitim_forw/$a_dagitim_forw['esit'];
+}else{
+$calc_dagitim_forw = $a_dagitim_forw['teklif_forw_miktar'];
+}
+}else{
+$calc_dagitim_forw = $num_dagitim_forw < $a_dagitim_forw['teklif_forw_miktar'] ? $num_dagitim_forw : $a_dagitim_forw['teklif_forw_miktar'];
+}
+					}
+
+						$num_dagitim_forw -= $calc_dagitim_forw;
+						if($num_dagitim_forw < 0) break;
+	
+						
+						 $kredi_ekle_forw = $db->prepare("UPDATE oneri SET
+			
+						 kredi_forw_miktar =:kredi_forw_miktar,
+						 kredi_forw_oran =:kredi_forw_oran,
+						 oneri_batak =:oneri_batak
+
+					 WHERE oneri_simulasyon_id='".$simulasyon_kimlik."' AND oneri_sene='".$anlik_sene."' AND oneri_kullanici_id='".$a_dagitim_forw['teklif_kullanici_id']."' AND oneri_firma_id= '".$a_dagitim_forw['teklif_firma_id']."' ");
+
+
+					 $insert = $kredi_ekle_forw->execute(array(
+						 
+						 'kredi_forw_miktar' => ($calc_dagitim_forw),
+						 'kredi_forw_oran' => ($a_dagitim_forw['teklif_forw_oran']),
+						 'oneri_batak' => ($firma['firma_batak'])
+
+					 ));
+			
+				}
+	
+}
+// ***************************************** forw İHTİYAÇ SON *************************************************								 
+															 
+	}
+
+		
+?>
